@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="Dyslexia Typography, Line Spacing, and Color Overlay Comparison">
+  <rect width="640" height="360" rx="16" fill="#F4EFE6"/>
+  <!-- Color Overlay Swatches -->
+  <rect x="35" y="35" width="130" height="125" rx="8" fill="#FDFBF7" stroke="#1B5E7B" stroke-width="3"/>
+  <text x="52" y="75" font-family="Verdana, sans-serif" font-size="14" font-weight="bold" fill="#222629">Warm Cream</text>
+  <text x="52" y="100" font-family="Verdana, sans-serif" font-size="12" fill="#474F54">#FDFBF7</text>
+
+  <rect x="180" y="35" width="130" height="125" rx="8" fill="#FFF9DB" stroke="#D6CFC2" stroke-width="2"/>
+  <text x="197" y="75" font-family="Verdana, sans-serif" font-size="14" font-weight="bold" fill="#222629">Soft Yellow</text>
+  <text x="197" y="100" font-family="Verdana, sans-serif" font-size="12" fill="#474F54">#FFF9DB</text>
+
+  <rect x="325" y="35" width="130" height="125" rx="8" fill="#EBF5FB" stroke="#D6CFC2" stroke-width="2"/>
+  <text x="342" y="75" font-family="Verdana, sans-serif" font-size="14" font-weight="bold" fill="#222629">Calm Sky</text>
+  <text x="342" y="100" font-family="Verdana, sans-serif" font-size="12" fill="#474F54">#EBF5FB</text>
+
+  <rect x="470" y="35" width="135" height="125" rx="8" fill="#EAFAF1" stroke="#D6CFC2" stroke-width="2"/>
+  <text x="487" y="75" font-family="Verdana, sans-serif" font-size="14" font-weight="bold" fill="#222629">Mint Sage</text>
+  <text x="487" y="100" font-family="Verdana, sans-serif" font-size="12" fill="#474F54">#EAFAF1</text>
+
+  <!-- Reading Ruler & Spacing Demo -->
+  <rect x="35" y="185" width="570" height="140" rx="10" fill="#FFFFFF" stroke="#D6CFC2" stroke-width="2"/>
+  <text x="60" y="220" font-family="Verdana, sans-serif" font-size="15" font-weight="bold" fill="#1B5E7B">Reading Focus Ruler &amp; 1.75x Line Spacing</text>
+  <rect x="55" y="235" width="530" height="36" rx="4" fill="#FFF9DB" stroke="#D96B27" stroke-width="2"/>
+  <text x="70" y="258" font-family="Verdana, sans-serif" font-size="14" fill="#222629" letter-spacing="1.2">Generous letter and word spacing prevents visual crowding.</text>
+  <text x="70" y="298" font-family="Verdana, sans-serif" font-size="14" fill="#5C6469" letter-spacing="1.2">Sans-serif letterforms distinguish b, d, p, and q clearly.</text>
+</svg>
