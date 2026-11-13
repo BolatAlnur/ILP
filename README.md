@@ -1,52 +1,77 @@
-# LexiLearn — Inclusive Learning Platform for Dyslexia (Lab 4: Vite + React)
+# LexiLearn — Inclusive Learning Platform for Dyslexia (Lab 5: React + Node.js/Express)
 
 **Authors:**
 - **Bolat Alnur** — Homepage Architecture, `Header.jsx`, `HeroSection.jsx`, & Dyslexia Visual Comfort Tools
 - **Usser Aidana** — AI Text Simplification Engine, `FeatureCard.jsx`, & `AuthForm.jsx` (Registration/Login Validation)
-- **Nurbol Halyk** — AI Audio Explanations, `StudyMaterialCard.jsx`, `StudyMaterialLibrary.jsx` (CRUD + Search/Filter), & `Footer.jsx`
+- **Nurbol Halyk** — AI Audio Explanations, `StudyMaterialCard.jsx`, `StudyMaterialLibrary.jsx` (Express API CRUD), & `Footer.jsx`
 
 ---
 
-## 1. How to Install & Run the Project
+## 1. How to Install & Run (Server + Client)
 
-Make sure you have **Node.js** installed, then run the following commands inside the `ILP-0.04` folder:
+Make sure **Node.js** is installed. Run the **Backend Server** and **Frontend Client** in two separate terminals inside `ILP-0.05`:
 
+### A. Backend Server (Port `3000`)
 ```bash
-# 1. Install dependencies
+cd server
 npm install
+npm start
+```
+The Express REST API will run at `http://localhost:3000`.
 
-# 2. Start the Vite development server
+### B. Frontend Client (Port `5173`)
+```bash
+npm install
 npm run dev
+```
+The Vite + React app will run at `http://localhost:5173`.
 
-# 3. Create a production build (verifies zero compile/bundle errors)
+To create a production frontend bundle:
+```bash
 npm run build
-
-# 4. Preview the production build locally
-npm run preview
 ```
 
 ---
 
-## 2. Project Folder Structure (`ILP-0.04`)
+## 2. Express REST API Endpoints (`server/server.js`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/status` | Returns `{ status: "ok" }` health check |
+| `GET` | `/api/hello` | Returns `{ message: "Hello from LexiLearn API" }` |
+| `GET` | `/api/materials` (alias `/api/items`) | Lists all study materials; supports `?search=...` query filtering |
+| `GET` | `/api/materials/:id` | Finds a single material via `.find()`, or returns `404` JSON error |
+| `POST` | `/api/materials` | Validates `title` & `subject` (`400` on invalid), assigns `id: Date.now()`, returns `201` |
+| `PUT` | `/api/materials/:id` | Updates an existing material by `id`, returning `404` if not found |
+| `DELETE` | `/api/materials/:id` | Deletes a material via `.filter()`, returning `404` if `id` does not exist |
+
+---
+
+## 3. Project Folder Structure (`ILP-0.05`)
 
 ```text
-ILP-0.04/
+ILP-0.05/
 ├── index.html                        # Vite entry HTML mounting #root
 ├── package.json                      # React 18 + Vite scripts & dependencies
 ├── vite.config.js                    # Vite React plugin configuration
-├── README.md                         # Setup guide & Lab 4 defense cheat-sheet
+├── README.md                         # Server & Client setup guide + API reference
+├── server/
+│   ├── package.json                  # Express & CORS backend dependencies
+│   ├── server.js                     # Express app, logging middleware & REST API routes
+│   ├── data.js                       # Custom CommonJS module with initial study materials
+│   └── validators.js                 # Custom CommonJS module for payload validation
 ├── public/
 │   └── images/                       # 6 custom dyslexia-accessible SVG illustrations
 └── src/
     ├── main.jsx                      # ReactDOM.createRoot entry point
-    ├── App.jsx                       # Root state container, view router & interactive tools
+    ├── App.jsx                       # Root state container, API status badge & views
     ├── index.css                     # Dyslexia-accessible stylesheet & @media (max-width: 860px)
     └── components/
         ├── Header.jsx                # Brand header, 7-tab nav & paper tint switcher
         ├── HeroSection.jsx           # Reusable hero banner accepting props
         ├── FeatureCard.jsx           # Reusable feature card accepting props
         ├── StudyMaterialCard.jsx     # Reusable CRUD item card accepting item, onEdit, onDelete
-        ├── StudyMaterialLibrary.jsx  # Full React CRUD + live search/filter + localStorage
+        ├── StudyMaterialLibrary.jsx  # React CRUD connected to Express API via fetch() + useEffect
         ├── AuthForm.jsx              # 7-field Registration & Login with live validation
         └── Footer.jsx                # Shared 3-column team attribution footer
 ```

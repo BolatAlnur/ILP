@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import HeroSection from './components/HeroSection';
 import FeatureCard from './components/FeatureCard';
@@ -94,6 +94,31 @@ export default function App() {
   const [feedback, setFeedback] = useState({ name: '', role: 'Student', message: '' });
   const [feedbackSent, setFeedbackSent] = useState(false);
 
+  // Subtle live Express backend status check
+  const [backendStatus, setBackendStatus] = useState('checking');
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkBackendStatus() {
+      try {
+        const res = await fetch('http://localhost:3000/api/status');
+        if (!res.ok) throw new Error('Status check failed');
+        const data = await res.json();
+        if (isMounted) {
+          setBackendStatus(data.status === 'ok' ? 'online' : 'offline');
+        }
+      } catch {
+        if (isMounted) {
+          setBackendStatus('offline');
+        }
+      }
+    }
+    checkBackendStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleNavigate = (pageId) => {
     setActivePage(pageId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -126,10 +151,35 @@ export default function App() {
         activePage={activePage}
         onNavigate={handleNavigate}
         paperTint={paperTint}
-        onTintChange={setPaperTint}
+        onChangePaperTint={setPaperTint}
       />
 
       <main className="container" id="main-content">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginTop: '0.75rem',
+            marginBottom: '-0.25rem'
+          }}
+        >
+          <span
+            className={`badge ${
+              backendStatus === 'online'
+                ? 'badge-success'
+                : backendStatus === 'offline'
+                ? 'badge-warning'
+                : 'badge-neutral'
+            }`}
+            title="Live status from GET http://localhost:3000/api/status"
+          >
+            {backendStatus === 'online'
+              ? 'Backend API: Online (Port 3000)'
+              : backendStatus === 'offline'
+              ? 'Backend API: Offline (Start /server)'
+              : 'Backend API: Checking...'}
+          </span>
+        </div>
         {/* ==================== 1. HOME VIEW ==================== */}
         {activePage === 'home' && (
           <div>
