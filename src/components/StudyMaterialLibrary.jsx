@@ -1,75 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import StudyMaterialCard from './StudyMaterialCard';
 
-const STORAGE_KEY = 'lexilearn_materials';
-
-const DEFAULT_MATERIALS = [
-  {
-    id: 'mat-101',
-    title: 'Cellular Respiration & ATP Synthesis',
-    subject: 'Biology 101',
-    readingLevel: 'Beginner',
-    estimatedMinutes: 12,
-    isSimplified: true,
-    audioAvailable: true
-  },
-  {
-    id: 'mat-102',
-    title: 'Keynesian Macroeconomics & Fiscal Policy',
-    subject: 'Economics 204',
-    readingLevel: 'Intermediate',
-    estimatedMinutes: 18,
-    isSimplified: true,
-    audioAvailable: false
-  },
-  {
-    id: 'mat-103',
-    title: 'Algorithmic Complexity & Big-O Notation',
-    subject: 'Computer Science',
-    readingLevel: 'Intermediate',
-    estimatedMinutes: 15,
-    isSimplified: false,
-    audioAvailable: true
-  },
-  {
-    id: 'mat-104',
-    title: 'Cognitive Load Theory in Neurodivergent Learning',
-    subject: 'Psychology 102',
-    readingLevel: 'Advanced',
-    estimatedMinutes: 22,
-    isSimplified: true,
-    audioAvailable: true
-  }
-];
-
-function loadInitialMaterials() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_MATERIALS));
-      return DEFAULT_MATERIALS;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return DEFAULT_MATERIALS;
-  } catch (err) {
-    console.warn('Could not read lexilearn_materials from localStorage:', err);
-    return DEFAULT_MATERIALS;
-  }
-}
-
-function saveMaterialsToStorage(list) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch (err) {
-    console.error('Could not save lexilearn_materials to localStorage:', err);
-  }
-}
+const API_BASE_URL = 'http://localhost:3000/api';
 
 export default function StudyMaterialLibrary({ onNavigate }) {
-  const [items, setItems] = useState(loadInitialMaterials);
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [levelFilter, setLevelFilter] = useState('all');
@@ -86,6 +25,28 @@ export default function StudyMaterialLibrary({ onNavigate }) {
 
   const [errors, setErrors] = useState({});
   const [statusBanner, setStatusBanner] = useState(null);
+
+  const fetchMaterials = useCallback(async () => {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/materials`);
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+      const data = await response.json();
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch study materials:', err);
+      setApiError('Load failed: could not connect to backend server');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMaterials();
+  }, [fetchMaterials]);
 
   const validateField = (name, value) => {
     if (name === 'title') {
@@ -141,7 +102,7 @@ export default function StudyMaterialLibrary({ onNavigate }) {
     setErrors({});
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const newErrors = {
@@ -162,46 +123,66 @@ export default function StudyMaterialLibrary({ onNavigate }) {
       return;
     }
 
-    if (editingItem) {
-      const updatedList = items.map((item) =>
-        item.id === editingItem.id
-          ? {
-              ...item,
-              title: formData.title.trim(),
-              subject: formData.subject,
-              readingLevel: formData.readingLevel,
-              estimatedMinutes: Number(formData.estimatedMinutes),
-              isSimplified: Boolean(formData.isSimplified),
-              audioAvailable: Boolean(formData.audioAvailable)
-            }
-          : item
-      );
-      setItems(updatedList);
-      saveMaterialsToStorage(updatedList);
-      setStatusBanner({
-        type: 'success',
-        message: `Updated study module "${formData.title.trim()}" in the catalog.`
-      });
-    } else {
-      const newItem = {
-        id: 'mat-' + Date.now(),
-        title: formData.title.trim(),
-        subject: formData.subject,
-        readingLevel: formData.readingLevel,
-        estimatedMinutes: Number(formData.estimatedMinutes),
-        isSimplified: Boolean(formData.isSimplified),
-        audioAvailable: Boolean(formData.audioAvailable)
-      };
-      const updatedList = [newItem, ...items];
-      setItems(updatedList);
-      saveMaterialsToStorage(updatedList);
-      setStatusBanner({
-        type: 'success',
-        message: `Added new study module "${newItem.title}" to the catalog.`
-      });
-    }
+    const payload = {
+      title: formData.title.trim(),
+      subject: formData.subject,
+      readingLevel: formData.readingLevel,
+      estimatedMinutes: Number(formData.estimatedMinutes),
+      isSimplified: Boolean(formData.isSimplified),
+      audioAvailable: Boolean(formData.audioAvailable)
+    };
 
-    resetForm();
+    setIsSubmitting(true);
+    try {
+      if (editingItem) {
+        const response = await fetch(`${API_BASE_URL}/materials/${editingItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update study module.');
+        }
+
+        setItems((prev) =>
+          prev.map((item) => (String(item.id) === String(editingItem.id) ? data : item))
+        );
+        setStatusBanner({
+          type: 'success',
+          message: `Updated study module "${data.title}" on the Express API.`
+        });
+      } else {
+        const response = await fetch(`${API_BASE_URL}/materials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create study module.');
+        }
+
+        setItems((prev) => [data, ...prev]);
+        setStatusBanner({
+          type: 'success',
+          message: `Created new study module "${data.title}" via POST /api/materials.`
+        });
+      }
+
+      setApiError(null);
+      resetForm();
+    } catch (err) {
+      console.error('Error saving study module:', err);
+      setStatusBanner({
+        type: 'error',
+        message: `Save failed: ${err.message || 'could not connect to backend server'}`
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (item) => {
@@ -221,35 +202,46 @@ export default function StudyMaterialLibrary({ onNavigate }) {
     });
   };
 
-  const handleDelete = (id) => {
-    const target = items.find((item) => item.id === id);
+  const handleDelete = async (id) => {
+    const target = items.find((item) => String(item.id) === String(id));
     if (!target) return;
 
-    const updatedList = items.filter((item) => item.id !== id);
-    setItems(updatedList);
-    saveMaterialsToStorage(updatedList);
+    try {
+      const response = await fetch(`${API_BASE_URL}/materials/${id}`, {
+        method: 'DELETE'
+      });
 
-    if (editingItem && editingItem.id === id) {
-      resetForm();
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Delete failed with status ${response.status}`);
+      }
+
+      setItems((prev) => prev.filter((item) => String(item.id) !== String(id)));
+
+      if (editingItem && String(editingItem.id) === String(id)) {
+        resetForm();
+      }
+
+      setStatusBanner({
+        type: 'success',
+        message: `Deleted "${target.title}" via DELETE /api/materials/${id}.`
+      });
+    } catch (err) {
+      console.error('Error deleting study module:', err);
+      setStatusBanner({
+        type: 'error',
+        message: `Delete failed: ${err.message || 'could not connect to backend server'}`
+      });
     }
-
-    setStatusBanner({
-      type: 'success',
-      message: `Deleted "${target.title}" from the study materials library.`
-    });
   };
 
-  const handleResetCatalog = () => {
-    setItems(DEFAULT_MATERIALS);
-    saveMaterialsToStorage(DEFAULT_MATERIALS);
+  const handleReloadFromServer = () => {
     resetForm();
     setSearchQuery('');
     setCategoryFilter('all');
     setLevelFilter('all');
-    setStatusBanner({
-      type: 'info',
-      message: 'Restored default university study modules in localStorage.'
-    });
+    setStatusBanner(null);
+    fetchMaterials();
   };
 
   const filteredItems = items.filter((item) => {
@@ -280,12 +272,13 @@ export default function StudyMaterialLibrary({ onNavigate }) {
       <section className="hero-section">
         <div className="hero-grid">
           <div className="hero-content">
-            <span className="hero-badge">Interactive React CRUD &bull; LocalStorage Persistence</span>
+            <span className="hero-badge">Express REST API &bull; React Fetch Integration</span>
             <h1>Adapted Study Materials Library</h1>
             <p className="hero-lead">
-              Browse, filter, create, edit, and delete dyslexia-adapted university study packs.
+              Browse, filter, create, edit, and delete dyslexia-adapted university study packs
+              connected to our Node.js + Express backend (<code>http://localhost:3000/api/materials</code>).
               Every module is dynamically rendered via React <code>.map()</code> with a unique{' '}
-              <code>key=&#123;item.id&#125;</code> prop and persisted in <code>localStorage</code>.
+              <code>key=&#123;item.id&#125;</code> prop.
             </p>
             <div className="stats-strip" style={{ marginTop: '1rem' }}>
               <div className="stat-item">
@@ -320,10 +313,32 @@ export default function StudyMaterialLibrary({ onNavigate }) {
             <span className="section-tag">React State &amp; Controlled Forms</span>
             <h2>Manage &amp; Filter Study Materials (CRUD)</h2>
           </div>
-          <button type="button" className="btn btn-outline btn-sm" onClick={handleResetCatalog}>
-            Restore Default Modules
+          <button type="button" className="btn btn-outline btn-sm" onClick={handleReloadFromServer}>
+            Refresh from Server
           </button>
         </div>
+
+        {apiError && (
+          <div
+            className="status-banner error"
+            role="alert"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}
+          >
+            <span>
+              <strong>{apiError}</strong> &mdash; Make sure the Express server is running on{' '}
+              <code>http://localhost:3000</code> (<code>cd server &amp;&amp; npm start</code>).
+            </span>
+            <button type="button" className="btn btn-outline btn-sm" onClick={fetchMaterials}>
+              Retry Connection
+            </button>
+          </div>
+        )}
 
         {statusBanner && (
           <div
@@ -463,8 +478,12 @@ export default function StudyMaterialLibrary({ onNavigate }) {
               </div>
 
               <div className="cta-group">
-                <button type="submit" className="btn btn-primary">
-                  {editingItem ? 'Update Study Module' : 'Add Study Module'}
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? 'Saving...'
+                    : editingItem
+                    ? 'Update Study Module'
+                    : 'Add Study Module'}
                 </button>
                 {editingItem && (
                   <button type="button" className="btn btn-outline" onClick={resetForm}>
@@ -521,7 +540,25 @@ export default function StudyMaterialLibrary({ onNavigate }) {
               </div>
             </div>
 
-            {filteredItems.length === 0 ? (
+            {isLoading ? (
+              <div className="info-banner" role="status" style={{ textAlign: 'center', padding: '2rem' }}>
+                <h3>Loading study materials...</h3>
+                <p style={{ margin: '0.5rem auto 0' }}>
+                  Fetching dyslexia-friendly modules from <code>http://localhost:3000/api/materials</code>.
+                </p>
+              </div>
+            ) : apiError && items.length === 0 ? (
+              <div className="info-banner" role="alert" style={{ textAlign: 'center', padding: '2rem' }}>
+                <h3>Unable to load study modules</h3>
+                <p style={{ margin: '0.5rem auto 1rem' }}>
+                  {apiError}. Start the backend server with <code>cd server &amp;&amp; npm start</code>{' '}
+                  and click Retry.
+                </p>
+                <button type="button" className="btn btn-primary btn-sm" onClick={fetchMaterials}>
+                  Retry API Request
+                </button>
+              </div>
+            ) : filteredItems.length === 0 ? (
               <div className="info-banner" style={{ textAlign: 'center', padding: '2rem' }}>
                 <h3>No matching study modules found</h3>
                 <p style={{ margin: '0.5rem auto 1rem' }}>
