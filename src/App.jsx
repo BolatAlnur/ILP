@@ -119,9 +119,97 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigate = (pageId) => {
+  // Lab 6: External Public API (Wikipedia via Express) + AI Simplification (Transformers.js)
+  const [topicQuery, setTopicQuery] = useState('Cellular respiration');
+  const [externalData, setExternalData] = useState(null);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalError, setExternalError] = useState('');
+
+  const [studyText, setStudyText] = useState(
+    'Cellular respiration is the process of oxidizing biological fuels, using an inorganic electron acceptor, such as oxygen, to drive production of adenosine triphosphate (ATP), which stores chemical energy in a biologically usable form.'
+  );
+  const [aiLevel, setAiLevel] = useState('Beginner');
+  const [aiResult, setAiResult] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+
+  const handleNavigate = (pageId, payload) => {
+    if (payload && payload.title) {
+      const cleanTopic = payload.title.split('&')[0].trim();
+      setTopicQuery(cleanTopic);
+      setExternalData(null);
+      setExternalError('');
+      setAiResult(null);
+      setAiError('');
+    }
     setActivePage(pageId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleExternalLookup = async (e) => {
+    if (e) e.preventDefault();
+    const q = topicQuery.trim();
+    if (q.length < 2) {
+      setExternalError('Please enter an academic topic (at least 2 characters).');
+      return;
+    }
+
+    setExternalLoading(true);
+    setExternalError('');
+    setExternalData(null);
+    setAiResult(null);
+
+    try {
+      const res = await fetch(
+        `http://localhost:3000/api/external/topic?q=${encodeURIComponent(q)}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed with status ${res.status}`);
+      }
+      setExternalData(data);
+      if (data.extract) {
+        setStudyText(data.extract);
+      }
+    } catch (err) {
+      setExternalError(err.message || 'Could not reach backend External API endpoint.');
+    } finally {
+      setExternalLoading(false);
+    }
+  };
+
+  const handleAiSimplify = async (e) => {
+    if (e) e.preventDefault();
+    const cleanText = studyText.trim();
+    if (cleanText.length < 30) {
+      setAiError('Please enter or load at least 30 characters of study text to simplify.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError('');
+    setAiResult(null);
+
+    try {
+      const res = await fetch('http://localhost:3000/api/ai/simplify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: cleanText,
+          topic: externalData?.title || topicQuery || 'Study Passage',
+          readingLevel: aiLevel
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `AI request failed with status ${res.status}`);
+      }
+      setAiResult(data);
+    } catch (err) {
+      setAiError(err.message || 'Could not reach backend AI Simplification endpoint.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleFeedbackSubmit = (e) => {
@@ -428,6 +516,181 @@ export default function App() {
                     <li key={idx}>{point}</li>
                   ))}
                 </ul>
+              </div>
+            </section>
+
+            {/* ==================== LAB 6: EXTERNAL PUBLIC API + AI WORKBENCH ==================== */}
+            <section className="section-block">
+              <div className="section-header">
+                <div>
+                  <span className="section-tag">Lab 6 &bull; External Public API + Transformers.js AI</span>
+                  <h2>Live Academic Topic Lookup &amp; AI Simplifier</h2>
+                </div>
+              </div>
+
+              <div className="crud-layout">
+                {/* Part 2: External Public API Lookup (Wikipedia via Express Backend) */}
+                <div className="form-panel">
+                  <h3>1. Fetch Academic Background (External API)</h3>
+                  <p className="text-muted">
+                    Calls <code>GET /api/external/topic?q=...</code> on our Express backend, which
+                    queries the Wikipedia REST API and returns only clean study fields.
+                  </p>
+
+                  <form onSubmit={handleExternalLookup}>
+                    <div className="form-group">
+                      <label htmlFor="wiki-topic-input">Academic Study Topic *</label>
+                      <input
+                        id="wiki-topic-input"
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g., Cellular respiration, Dyslexia, Macroeconomics"
+                        value={topicQuery}
+                        onChange={(e) => setTopicQuery(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="cta-group" style={{ marginBottom: '1rem' }}>
+                      {['Cellular respiration', 'Dyslexia', 'Cognitive load', 'Macroeconomics'].map(
+                        (preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setTopicQuery(preset)}
+                          >
+                            {preset}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="btn btn-secondary"
+                      disabled={externalLoading}
+                    >
+                      {externalLoading ? 'Fetching from Wikipedia API...' : 'Lookup Topic Summary'}
+                    </button>
+                  </form>
+
+                  {externalLoading && (
+                    <div className="status-banner info" role="status" style={{ marginTop: '1rem' }}>
+                      Loading academic summary from Express &rarr; Wikipedia REST API...
+                    </div>
+                  )}
+
+                  {externalError && (
+                    <div className="status-banner error" role="alert" style={{ marginTop: '1rem' }}>
+                      <strong>External API Error:</strong> {externalError}
+                    </div>
+                  )}
+
+                  {externalData && (
+                    <div
+                      className="info-banner"
+                      style={{ marginTop: '1.25rem', borderLeft: '4px solid var(--brand-primary)' }}
+                    >
+                      <div className="card-badges">
+                        <span className="badge badge-success">External API Success</span>
+                        <span className="badge badge-neutral">{externalData.description}</span>
+                      </div>
+                      <h4 style={{ marginTop: '0.5rem' }}>{externalData.title}</h4>
+                      <p style={{ marginBottom: '0.75rem' }}>{externalData.extract}</p>
+                      <a
+                        href={externalData.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-outline btn-sm"
+                      >
+                        View Wikipedia Source &rarr;
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Part 3: AI Simplification (Transformers.js via Express Backend) */}
+                <div className="form-panel">
+                  <h3>2. Simplify Study Passage with AI</h3>
+                  <p className="text-muted">
+                    Calls <code>POST /api/ai/simplify</code> using our backend{' '}
+                    <strong>Transformers.js</strong> model to turn dense study text into
+                    dyslexia-friendly takeaways.
+                  </p>
+
+                  <form onSubmit={handleAiSimplify}>
+                    <div className="form-group">
+                      <label htmlFor="ai-reading-level">Target Reading Support Level</label>
+                      <select
+                        id="ai-reading-level"
+                        className="form-control"
+                        value={aiLevel}
+                        onChange={(e) => setAiLevel(e.target.value)}
+                      >
+                        <option value="Beginner">Beginner (Shorter, high-clarity summary)</option>
+                        <option value="Intermediate">Intermediate (Detailed study summary)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="ai-study-text">
+                        Study Passage (auto-filled from External API or paste your own) *
+                      </label>
+                      <textarea
+                        id="ai-study-text"
+                        rows="5"
+                        className="form-control"
+                        value={studyText}
+                        onChange={(e) => setStudyText(e.target.value)}
+                        placeholder="Fetch a topic on the left or paste a dense textbook paragraph..."
+                      />
+                    </div>
+
+                    <button type="submit" className="btn btn-primary" disabled={aiLoading}>
+                      {aiLoading ? 'Simplifying with AI Model...' : 'Simplify with AI'}
+                    </button>
+                  </form>
+
+                  {aiLoading && (
+                    <div className="status-banner info" role="status" style={{ marginTop: '1rem' }}>
+                      Running backend AI summarization model (<code>Transformers.js</code>)...
+                    </div>
+                  )}
+
+                  {aiError && (
+                    <div className="status-banner error" role="alert" style={{ marginTop: '1rem' }}>
+                      <strong>AI Simplification Error:</strong> {aiError}
+                    </div>
+                  )}
+
+                  {aiResult && (
+                    <div
+                      className="info-banner"
+                      style={{ marginTop: '1.25rem', borderLeft: '4px solid var(--brand-secondary)' }}
+                    >
+                      <div className="card-badges">
+                        <span className="badge badge-primary">{aiResult.provider}</span>
+                        <span className="badge badge-secondary">{aiResult.modelUsed}</span>
+                      </div>
+                      <h4 style={{ marginTop: '0.5rem' }}>
+                        Dyslexia-Friendly Summary: {aiResult.topic}
+                      </h4>
+                      <p style={{ fontSize: '1.08rem', lineHeight: '1.8' }}>
+                        {aiResult.simplifiedSummary}
+                      </p>
+                      {Array.isArray(aiResult.keyTakeaways) && aiResult.keyTakeaways.length > 0 && (
+                        <>
+                          <strong>Scannable Key Points:</strong>
+                          <ul className="feature-list" style={{ marginTop: '0.4rem' }}>
+                            {aiResult.keyTakeaways.map((point, idx) => (
+                              <li key={idx}>{point}</li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </section>
           </div>

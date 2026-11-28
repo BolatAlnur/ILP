@@ -61,10 +61,10 @@ export default function StudyMaterialCard({ item, isEditing, onEdit, onDelete, o
           <button
             type="button"
             className="icon-btn"
-            onClick={() => onNavigate('simplification')}
+            onClick={() => onNavigate('simplification', item)}
             aria-label={`Open ${item.title} in Simplifier`}
           >
-            Read
+            Read &amp; Simplify
           </button>
           {item.audioAvailable && (
             <button

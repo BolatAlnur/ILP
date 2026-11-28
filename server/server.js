@@ -1,7 +1,11 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { initialMaterials } = require('./data');
 const { validateMaterialPayload } = require('./validators');
+const { fetchTopicSummary } = require('./externalApi');
+const { simplifyStudyText } = require('./aiService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,17 +27,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// 1. Health / Status endpoint
+// ==================== PART 1: REST API ENDPOINTS ====================
+
+// Health / Status endpoint
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({
+    status: 'ok',
+    aiModel: process.env.AI_MODEL || 'Xenova/t5-small'
+  });
 });
 
-// 2. Hello endpoint
+// Hello endpoint
 app.get('/api/hello', (req, res) => {
   res.json({ message: 'Hello from LexiLearn API' });
 });
 
-// 3. List materials with optional ?search=... query filtering by title or subject/topic
+// List materials with optional ?search=... query filtering by title, subject, or level
 function handleGetMaterials(req, res) {
   const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
 
@@ -54,7 +63,7 @@ function handleGetMaterials(req, res) {
 app.get('/api/materials', handleGetMaterials);
 app.get('/api/items', handleGetMaterials);
 
-// 4. Get single material by ID using .find()
+// Get single material by ID using .find()
 app.get('/api/materials/:id', (req, res) => {
   const targetId = req.params.id;
   const found = materials.find((item) => String(item.id) === String(targetId));
@@ -66,7 +75,7 @@ app.get('/api/materials/:id', (req, res) => {
   return res.json(found);
 });
 
-// 5. Create new material with validation and unique Date.now() ID
+// Create new material with validation and unique Date.now() ID
 app.post('/api/materials', (req, res) => {
   const validation = validateMaterialPayload(req.body);
 
@@ -86,7 +95,7 @@ app.post('/api/materials', (req, res) => {
   return res.status(201).json(newMaterial);
 });
 
-// 6. Update existing material by ID
+// Update existing material by ID
 app.put('/api/materials/:id', (req, res) => {
   const targetId = req.params.id;
   const existing = materials.find((item) => String(item.id) === String(targetId));
@@ -115,7 +124,36 @@ app.put('/api/materials/:id', (req, res) => {
   return res.json(updatedMaterial);
 });
 
-// 7. Delete material by ID using .filter()
+// Partial update (PATCH) for toggling accessibility flags (isSimplified / audioAvailable)
+app.patch('/api/materials/:id/flags', (req, res) => {
+  const targetId = req.params.id;
+  const existing = materials.find((item) => String(item.id) === String(targetId));
+
+  if (!existing) {
+    return res.status(404).json({ error: `Study material with id "${targetId}" not found.` });
+  }
+
+  const { isSimplified, audioAvailable } = req.body || {};
+  if (typeof isSimplified !== 'boolean' && typeof audioAvailable !== 'boolean') {
+    return res.status(400).json({
+      error: 'Provide at least one boolean flag ("isSimplified" or "audioAvailable") to update.'
+    });
+  }
+
+  const updated = {
+    ...existing,
+    isSimplified: typeof isSimplified === 'boolean' ? isSimplified : existing.isSimplified,
+    audioAvailable: typeof audioAvailable === 'boolean' ? audioAvailable : existing.audioAvailable
+  };
+
+  materials = materials.map((item) =>
+    String(item.id) === String(targetId) ? updated : item
+  );
+
+  return res.json(updated);
+});
+
+// Delete material by ID using .filter()
 app.delete('/api/materials/:id', (req, res) => {
   const targetId = req.params.id;
   const exists = materials.some((item) => String(item.id) === String(targetId));
@@ -126,6 +164,58 @@ app.delete('/api/materials/:id', (req, res) => {
 
   materials = materials.filter((item) => String(item.id) !== String(targetId));
   return res.json({ message: 'Study material deleted.', id: targetId });
+});
+
+// ==================== PART 2: EXTERNAL PUBLIC API ====================
+
+// GET /api/external/topic?q=Cellular+respiration
+app.get('/api/external/topic', async (req, res) => {
+  const topic = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+  if (topic.length < 2) {
+    return res.status(400).json({
+      error: 'Query parameter "q" must be at least 2 characters long.'
+    });
+  }
+
+  try {
+    const summaryData = await fetchTopicSummary(topic);
+    return res.json(summaryData);
+  } catch (err) {
+    const status = err.statusCode || 502;
+    return res.status(status).json({
+      error: err.message || 'Failed to fetch data from external Wikipedia API.'
+    });
+  }
+});
+
+// ==================== PART 3: AI SIMPLIFICATION ENDPOINT ====================
+
+// POST /api/ai/simplify
+app.post('/api/ai/simplify', async (req, res) => {
+  const { text, topic, readingLevel } = req.body || {};
+  const cleanText = typeof text === 'string' ? text.trim() : '';
+
+  if (cleanText.length < 30) {
+    return res.status(400).json({
+      error: 'Please provide at least 30 characters of study text to simplify with AI.'
+    });
+  }
+
+  try {
+    const aiResult = await simplifyStudyText({
+      text: cleanText,
+      topic: typeof topic === 'string' ? topic.trim() : 'Study Passage',
+      readingLevel: typeof readingLevel === 'string' ? readingLevel.trim() : 'Beginner'
+    });
+    return res.json(aiResult);
+  } catch (err) {
+    console.error('AI simplification error:', err);
+    const status = err.statusCode || 500;
+    return res.status(status).json({
+      error: err.message || 'AI simplification failed on the server.'
+    });
+  }
 });
 
 app.listen(PORT, () => {
